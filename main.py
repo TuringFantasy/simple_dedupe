@@ -8,6 +8,9 @@ from flask_cors import CORS
 
 import json
 
+import cv2 as cv
+import numpy
+
 app = Flask(__name__)
 app.config['UPLOAD_FOLDER'] = "./"
 CORS(app)
@@ -41,6 +44,23 @@ def get_db_users():
         users = json.load(db)
     return users
 
+def get_db_images():
+    """
+    Fetch all image locations from DB (JSON)
+
+    Returns
+    --------
+    list of dicts : [
+                        {
+                            "id": <id>,
+                            "image": </path/to/image>
+                        }
+                    ]
+    """
+    with open("images.json", 'r') as file_db:
+        images = json.load(file_db)
+    return images
+
 @app.route('/duplicates', methods=['GET'])
 def handle_duplicates():
     """
@@ -55,9 +75,33 @@ def handle_duplicates():
         }
     ]
     """
-    
-    pass
-    
+    users = get_db_users()
+    images = get_db_images()
+
+    sift = cv.xfeatures2d.SIFT_create()
+
+    image_ingests = list(map(lambda image: [cv.imread(image['image'], 0), image['id']], images))
+
+    match_counts = []
+    for image in image_ingests:
+        kp1, des1 = sift.detectAndCompute(image[0], None)
+        for other_image in image_ingests:
+            if image[1] != other_image[1]:
+                kp2, des2 = sift.detectAndCompute(other_image[0], None)
+                bf = cv.BFMatcher()
+                matches = bf.knnMatch(des1, des2, k=2)
+                good = []
+                for m, n in matches:
+                    if m.distance < 0.75*n.distance:
+                        good.append([m])
+                obj = {
+                    "base": image[1],
+                    "compare": other_image[1],
+                    "match_count": len(good)
+                }
+                match_counts.append(obj)
+
+    return jsonify(match_counts), 200
 
 @app.route('/users', methods=['GET'])
 def get_users():
