@@ -1,0 +1,11 @@
+certifi==2018.4.16
+click==6.7
+Flask==1.0.2
+Flask-Cors==3.0.6
+Flask-Script==2.0.6
+gunicorn==19.9.0
+itsdangerous==0.24
+Jinja2==2.10
+MarkupSafe==1.0
+six==1.11.0
+Werkzeug==0.14.1
