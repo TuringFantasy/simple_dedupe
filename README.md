@@ -13,3 +13,5 @@ JSON mapping imagefiles to user unique IDs
 ## API
 
 `/duplicates` (GET): Ask for any potential duplicates
+`/users` (GET): Get all users
+`/user/<id>` (GET): Get a user by an `id`
