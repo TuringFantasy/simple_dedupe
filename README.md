@@ -25,10 +25,8 @@ Replicate a simple database just using a JSON
 JSON mapping imagefiles to user unique IDs
 
 ## API
-<br>
-`/duplicates` (GET): Ask for any potential duplicates
-<br>
-`/users` (GET): Get all users
-<br>
-`/user/<id>` (GET): Get a user by an `id`
+
+* `/duplicates` (GET): Ask for any potential duplicates
+* `/users` (GET): Get all users
+* `/user/<id>` (GET): Get a user by an `id`
 
