@@ -67,23 +67,49 @@ def get_db_images():
     return images
 
 def _sift_transform_images(users, images):
+    """
+    Use Scale Invariant Feature Transformation to isolate key points in two images, 
+    then use a brute force matcher to find k=2 matches across the images, keeping only
+    low distance (i.e. stronger) matches, then weighting the count of those matches against 
+    image sizes, and storing that resulting index value along with the original test image ids.
 
-    sift = cv.xfeatures2d.SIFT_create()
+    Iterate over all images linked to users by UID field "id" to determine SIFT match index values
+    across all images to one another.
 
+    Params
+    --------
+    users (list of dicts) : get_db_users()
+    images (list of dicts) : get_db_images()
+
+    Returns
+    --------
+    match_counts (list of dicts) : 
+    [
+        {
+            "id":
+            "duplicate_id":
+            "match_index":
+        }
+    ]
+    
+    """
+    sift = cv.xfeatures2d.SIFT_create()                                     # init SIFT analyzer in 2d space
+
+    # create a memory-heavy 2d array mapping cv image attributes, image ID, and image size in KB across all images
     image_ingests = list(map(lambda image: [cv.imread(image['image'], 0), image['id'], os.stat(image['image']).st_size / 1000], images))
 
     match_counts = []
     for image in image_ingests:
-        kp1, des1 = sift.detectAndCompute(image[0], None)
-        for other_image in image_ingests:
-            if image[1] != other_image[1]:
+        kp1, des1 = sift.detectAndCompute(image[0], None)                   # Create key points array and matching descriptor  
+        for other_image in image_ingests:                                   #  array using SIFT algorithm
+            if image[1] != other_image[1]:                                  # Only check images that are not the key image
                 kp2, des2 = sift.detectAndCompute(other_image[0], None)
-                bf = cv.BFMatcher()
-                matches = bf.knnMatch(des1, des2, k=2)
+                bf = cv.BFMatcher()                                         # init Brute Force matcher
+                matches = bf.knnMatch(des1, des2, k=2)                      # get k = 2 best matches
                 good = []
                 for m, n in matches:
-                    if m.distance < 0.75*n.distance:
-                        good.append([m])
+                    if m.distance < 0.75*n.distance:                        # reject matches with too high of distance
+                        good.append([m])                                    #  i.e., weak matches
                 obj = {
                     "id": image[1],
                     "duplicate_id": other_image[1],
@@ -93,10 +119,40 @@ def _sift_transform_images(users, images):
     return match_counts
 
 def _test_threshhold(item):
+    """
+    Given an item, compare its match index against the weighted threshhold.
+
+    Params
+    ---------
+    item (dict): {
+        "id": <some_id>
+        "duplicate_id": <some_other_id>
+        "match_index": number of strong SIFT matches between <some_id> and <some_other_id> 
+                       weighted by image sizes
+    }
+    """
     return int(item["match_index"]) > DUPLICATE_WEIGHT_THRESHHOLD
 
 @app.route('/duplicate/<id_value>', methods=['GET'])
 def retrieve_duplicate(id_value):
+    """
+    Contacts SIFT Matches database to determine if a given user (by id)
+    has a possible duplicate match in the users database, given their 
+    identifying documents, a fixed match threshhold, and match weighting
+    by image resolution.
+    
+    Params
+    --------
+    id_value (str) : id for which duplication should be checked
+
+    Returns
+    --------
+    {
+        "id": param(id_value)
+        "duplicate": True | False
+        "duplicate_id": [<duplicate id(s)if one or more exists>] | []
+    }
+    """
     if os.path.isfile(SIFT_OUTPUT_FILE):
         with open(SIFT_OUTPUT_FILE, 'r') as sift_matches_db:
             match_counts = json.load(sift_matches_db)
@@ -123,7 +179,18 @@ def retrieve_duplicate(id_value):
 @app.route('/duplicates', methods=['GET'])
 def handle_duplicates():
     """
-    Report back all duplicates, if any are found
+    Contact SIFT matches database to calculate SIFT distance matches
+    for key points on identifying documents attached to users in the users database.
+    Report back flagged users given a fixed match threshhold and match weighting
+    by image resolution.
+
+    If SIFT Matches database does not yet exist, create it (takes a little while, depending 
+    on available processing power)
+    
+    NOTE: This does not compress the JSON payload to consolidate duplicate IDs 
+    in to a graph-like structure, like the "/duplicate/<id_value>" endpoint does. This is 
+    computationally costly across N users, whereas the single user endpoint substantially 
+    reduces runtime complexity.
 
     Returns
     ---------
@@ -132,7 +199,7 @@ def handle_duplicates():
             "id": <id>,
             "duplicate": True,
             "duplicate_id": <duplicate_id>
-        }
+        },
     ]
     """
     duplicate_guesses = []
