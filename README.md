@@ -43,3 +43,5 @@ The notion of deduplication centers upon creating a similarity threshhold for al
 
 This is just one aspect of deduplication given a domain of users. Distance algorithms should be applied to all text data in the users database (literal pattern matches to find name + dob + ssn + location dupes). OCR and entity extraction should be performed on all identifying documents to yield additional text-based duplication estimates.
 
+Test
+
